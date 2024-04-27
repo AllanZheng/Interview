@@ -1,4 +1,5 @@
-const { stat } = require('fs');
+const service = require('./service.js');
+const fs = require('fs');
 
 //var url = 'http://107.173.104.196:8000/sendSecretToMe';
 var url = 'http://0.0.0.0:8000/sendSecretToMe';
@@ -6,9 +7,37 @@ var data = {
   receive_url: 'http://localhost:3000',
 
 };
-var status = false
-var count =0
-
+var status = true
+var count = 0
+var port = 3000;
+var maxRetries = 100; // 最大重试次数
+var delay = 1000; // 重试间隔时间（毫秒）
+// 获取参数文件
+function getConfig(){
+  fs.readFile('config.json', 'utf8', (err, filedata) => {
+    if (err) {
+      console.error(err);
+      return;
+    }
+    const config = JSON.parse(filedata);
+    if (config.url!=null&&config.url!=""){
+      url=config.url
+    }
+    if (config.maxRetries!=null){
+      maxRetries=config.maxRetries
+    }
+    if (config.delay!=null){
+      delay=config.delay
+    }
+    if (config.receive_url!=null&&config.receive_url!=""){
+      data.receive_url=config.receive_url
+    }
+    if (config.port!=null){
+      port=config.port
+    }
+    console.log(config);
+  });
+}
 //参数查询 
 function checkParams(body) {
   // 检查是否包含名为 'password' 和'username'的参数
@@ -70,13 +99,17 @@ function serverStart() {
       req.on('end', () => {
         // 解析请求体数据，如果是JSON格式的数据，则解析为对象
         let requestBody;
+        module.exports.requestBody=requestBody;  
+        if (body!=null&&body!=""){
         try {
           requestBody = JSON.parse(body);
         } catch (error) {
           console.log(error)
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          res.end('Parse Error');
         }
-
-
+      }
+        console.log(body);
         console.log('Parsed Body:', requestBody);
 
         // 检查是否包含特定参数
@@ -99,15 +132,55 @@ function serverStart() {
               res.end('Home Page');
               break;
             case '/create':
-              // 处理关于页面请求
-              res.writeHead(200, { 'Content-Type': 'text/plain' });
-              res.end('create');
+              // 创建task请求
+              if (service.createTask(requestBody)!=null){
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end('create successful');
+              }else{
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                res.end('create failed');
+              }
               break;
             case '/update':
-              // 处理未知路径请求
-              res.writeHead(200, { 'Content-Type': 'text/plain' });
-              res.end('update');
+              // 更新task请求
+              if (service.updateTask(requestBody)!=null){
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                res.end('update successful');
+              }else{
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                res.end('update failed');
+              }
               break;
+            case '/delete':
+                // 删除task请求
+                if (service.deleteTask(requestBody)!=null){
+                  res.writeHead(200, { 'Content-Type': 'text/plain' });
+                  res.end('delete successful');
+                }else{
+                  res.writeHead(400, { 'Content-Type': 'text/plain' });
+                  res.end('delete failed');
+                }
+                break;
+            case '/all':
+              result=service.getAllTasks(requestBody)
+              if (result!=null){
+                console.log(result);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(result));
+              }else{
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                res.end('delete failed');
+              }
+              break;
+              case '/get':
+                if (service.getTaskById(requestBody)!=null){
+                  res.writeHead(200, { 'Content-Type': 'text/plain' });
+                  res.end('delete successful');
+                }else{
+                  res.writeHead(400, { 'Content-Type': 'text/plain' });
+                  res.end('delete failed');
+                }
+                  break;
             default:
               res.writeHead(404, { 'Content-Type': 'text/plain' });
               res.end('404 Not Found');
@@ -117,16 +190,16 @@ function serverStart() {
       });
     });
 
-    const PORT = 3000;
-    server.listen(PORT, () => {
-      console.log(`Server running at http://localhost:${PORT}/`);
+   
+    server.listen(port, () => {
+      console.log(`Server running at http://localhost:${port}/`);
     });
 
-
   }
-serverStart()
 
-// 异步函数，模拟需要重试的操作
+
+
+// 异步函数，模拟需要重请求
 async function retryOperation(maxRetries, delay) {
   try {
     // 执行异步操作，这里假设是一个可能会失败的异步任务
@@ -135,7 +208,7 @@ async function retryOperation(maxRetries, delay) {
     if (status) {
       return status;
     } else {
-      // 如果条件不满足，则抛出一个错误，触发重试
+      // 如果服务器状态为false，则抛出一个错误，触发重试
       throw new Error('Condition not met, retrying...');
     }
   } catch (error) {
@@ -174,9 +247,9 @@ async function retryRequest(){
   });
 } 
 
+getConfig()
+serverStart()
 // 调用异步函数进行重试
-const maxRetries = 100; // 最大重试次数
-const delay = 1000; // 重试间隔时间（毫秒）
 retryOperation(maxRetries, delay)
   .then(result => {
     console.log('Operation completed successfully:', result);

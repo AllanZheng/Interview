@@ -1,0 +1,9 @@
+{
+    "url":"",
+    "receive_url": "",
+    "maxRetries" : 15, 
+    "delay": 100,
+    "port":3001, 
+    "database":"false",
+    "database_url":""
+}
