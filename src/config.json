@@ -1,0 +1,8 @@
+{
+    "url":"",
+    "receive_url": "",
+    "maxRetries" : 100, 
+    "delay": 100,
+    "port":3000
+
+}
